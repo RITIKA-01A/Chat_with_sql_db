@@ -1,0 +1,10 @@
+blinker
+protobuf
+typing_extensions
+click
+langchain
+langchain-community
+langchain_groq
+mysql-connector-python
+SQLAlchemy
+pandas

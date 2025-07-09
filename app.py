@@ -1,4 +1,5 @@
 import streamlit as st
+import pymysql
 from pathlib import Path
 
 #Creates an LLM agent that understands SQL
@@ -21,6 +22,7 @@ from sqlalchemy import create_engine
 
 #	Native Python interface to SQLite (manual use)
 import sqlite3
+from urllib.parse import quote_plus
 
 from langchain_groq import ChatGroq
 
@@ -48,17 +50,19 @@ if radio_opt.index(selected_opt)==1:
 else:
     db_uri=LOCALDB
 
-api_key=st.sidebar.text_input("Enter the Groq api key",type"password")
+api_key=st.sidebar.text_input("Enter the Groq api key",type="password")
 
 if not db_uri:
     st.info("Please enter the database information and uri")
 
 if not api_key:
     st.info("Please add the Groq api key")
+    st.stop()
+
+## LLm model 
+llm = ChatGroq(api_key=api_key,model_name="Llama3-8b-8192")
 
 
-## LLm model
-llm = ChatGroq(grqo_api_key=api_key,model_name="Llama3-8b-8192")
 
 @st.cache_resource(ttl="2h")
 def configure_db(db_uri,mysql_host=None,mysql_user=None,mysql_password=None,mysql_db=None):
@@ -74,11 +78,48 @@ def configure_db(db_uri,mysql_host=None,mysql_user=None,mysql_password=None,mysq
             st.stop()
         
         else:
-            return SQLDatabase(create_engine(f"mysql+mysqlconnector://{mysql_user}:{mysql_password}@{mysql_host}/{mysql_db}"))
+            user = quote_plus(mysql_user)
+            password = quote_plus(mysql_password)
+            uri = f"mysql+pymysql://{user}:{password}@{mysql_host}/{mysql_db}"
+            st.write(f"🔌 Connecting to MySQL: {uri}")  # Optional debug
+            return SQLDatabase(create_engine(uri))
+
+
+            #return SQLDatabase(create_engine(f"mysql+pymysql://{mysql_user}:{mysql_password}@{mysql_host}/{mysql_db}"))
 
 if db_uri==MYSQL:
     db=configure_db(db_uri,mysql_host,mysql_user,mysql_password,mysql_db)
 else:
     db=configure_db(db_uri)
 
+## Toolkit
+toolkit=SQLDatabaseToolkit(db=db,llm=llm)
 
+## Creating the sql agent
+agent=create_sql_agent(
+    llm=llm,
+    toolkit=toolkit,
+    verbose=True,
+    agent_type=AgentType.ZERO_SHOT_REACT_DESCRIPTION
+)
+
+if "messages" not in st.session_state or st.sidebar.button("Clear message history"):
+    st.session_state["messages"]=[
+        {"role":"assistant","content":"How can i help you"},
+        
+    ]
+
+for msg in st.session_state.messages:
+    st.chat_message(msg["role"]).write(msg['content'])
+
+user_query=st.chat_input(placeholder="Ask anything from the database")
+
+if user_query:
+    st.session_state.messages.append({"role":"user" , "content":user_query})
+    st.chat_message("user").write(user_query)
+
+    with st.chat_message("assistant"):
+        streamlit_callback=StreamlitCallbackHandler(st.container())
+        response=agent.run(user_query,callbacks=[streamlit_callback])
+        st.session_state.messages.append({"role":"assistant","content":response})
+        st.write(response)
