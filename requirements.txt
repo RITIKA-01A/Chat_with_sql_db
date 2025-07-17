@@ -8,3 +8,5 @@ langchain_groq
 mysql-connector-python
 SQLAlchemy
 pandas
+streamlit
+pymysql

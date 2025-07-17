@@ -81,7 +81,7 @@ def configure_db(db_uri,mysql_host=None,mysql_user=None,mysql_password=None,mysq
             user = quote_plus(mysql_user)
             password = quote_plus(mysql_password)
             uri = f"mysql+pymysql://{user}:{password}@{mysql_host}/{mysql_db}"
-            st.write(f"🔌 Connecting to MySQL: {uri}")  # Optional debug
+            #st.write(f"🔌 Connecting to MySQL: {uri}")  # Optional debug
             return SQLDatabase(create_engine(uri))
 
 
